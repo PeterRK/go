@@ -6,14 +6,12 @@ package slices
 
 import (
 	"cmp"
-	"math/bits"
 )
 
 // Sort sorts a slice of any ordered type in ascending order.
 // When sorting floating-point numbers, NaNs are ordered before other values.
 func Sort[S ~[]E, E cmp.Ordered](x S) {
-	n := len(x)
-	pdqsortOrdered(x, 0, n, bits.Len(uint(n)))
+	sortFast(x)
 }
 
 // SortFunc sorts the slice x in ascending order as determined by the cmp
@@ -24,35 +22,24 @@ func Sort[S ~[]E, E cmp.Ordered](x S) {
 // SortFunc requires that cmp is a strict weak ordering.
 // See https://en.wikipedia.org/wiki/Weak_ordering#Strict_weak_orderings.
 func SortFunc[S ~[]E, E any](x S, cmp func(a, b E) int) {
-	n := len(x)
-	pdqsortCmpFunc(x, 0, n, bits.Len(uint(n)), cmp)
+	compare[E](cmp).sortFast(x)
 }
 
 // SortStableFunc sorts the slice x while keeping the original order of equal
 // elements, using cmp to compare elements.
 func SortStableFunc[S ~[]E, E any](x S, cmp func(a, b E) int) {
-	stableCmpFunc(x, len(x), cmp)
+	compare[E](cmp).sortStable(x)
 }
 
 // IsSorted reports whether x is sorted in ascending order.
 func IsSorted[S ~[]E, E cmp.Ordered](x S) bool {
-	for i := len(x) - 1; i > 0; i-- {
-		if cmp.Less(x[i], x[i-1]) {
-			return false
-		}
-	}
-	return true
+	return isSorted(x)
 }
 
 // IsSortedFunc reports whether x is sorted in ascending order, with cmp as the
 // comparison function.
 func IsSortedFunc[S ~[]E, E any](x S, cmp func(a, b E) int) bool {
-	for i := len(x) - 1; i > 0; i-- {
-		if cmp(x[i], x[i-1]) < 0 {
-			return false
-		}
-	}
-	return true
+	return compare[E](cmp).isSorted(x)
 }
 
 // Min returns the minimal value in x. It panics if x is empty.
@@ -163,30 +150,14 @@ func BinarySearchFunc[S ~[]E, E, T any](x S, target T, cmp func(E, T) int) (int,
 	return i, i < n && cmp(x[i], target) == 0
 }
 
-type sortedHint int // hint for pdqsort when choosing the pivot
-
-const (
-	unknownHint sortedHint = iota
-	increasingHint
-	decreasingHint
-)
-
-// xorshift paper: https://www.jstatsoft.org/article/view/v008i14/xorshift.pdf
-type xorshift uint64
-
-func (r *xorshift) Next() uint64 {
-	*r ^= *r << 13
-	*r ^= *r >> 17
-	*r ^= *r << 5
-	return uint64(*r)
-}
-
-func nextPowerOfTwo(length int) uint {
-	return 1 << bits.Len(uint(length))
-}
-
 // isNaN reports whether x is a NaN without requiring the math package.
 // This will always return false if T is not floating-point.
 func isNaN[T cmp.Ordered](x T) bool {
 	return x != x
+}
+
+type compare[E any] func(a, b E) int
+
+func (c compare[E]) Less(a, b E) bool {
+	return c(a, b) < 0
 }

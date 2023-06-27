@@ -248,6 +248,17 @@ func BenchmarkSortFuncStructs(b *testing.B) {
 	}
 }
 
+
+func BenchmarkSortStableFuncStructs(b *testing.B) {
+	cmpFunc := func(a, b *myStruct) int { return a.n - b.n }
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		ss := makeRandomStructs(N)
+		b.StartTimer()
+		SortStableFunc(ss, cmpFunc)
+	}
+}
+
 func BenchmarkBinarySearchFloats(b *testing.B) {
 	for _, size := range []int{16, 32, 64, 128, 512, 1024} {
 		b.Run(fmt.Sprintf("Size%d", size), func(b *testing.B) {
